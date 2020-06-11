@@ -1,0 +1,8 @@
+<config>
+  <modules>
+    <ID_Activecampaign>
+      <active>true</active>
+      <codePool>local</codePool>
+    </ID_Activecampaign>
+  </modules>
+</config>
