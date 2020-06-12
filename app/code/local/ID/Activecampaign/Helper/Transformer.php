@@ -90,4 +90,21 @@ class ID_Activecampaign_Helper_Transformer extends Mage_Core_Helper_Abstract
 
 		return $payload;
 	}
+
+	public function createContactPayloadFromOrder($order)
+	{
+		return array(
+			'email' => $order->getCustomerEmail(),
+			'firstName' => $order->getBillingAddress()->getFirstname(),
+			'lastName' => $order->getBillingAddress()->getLastname(),
+			'phone' => $order->getBillingAddress()->getTelephone()
+		);
+	}
+
+	public function createContactPayloadFromSubscriber($subscriber)
+	{
+		return array(
+			'email' => $subscriber->getSubscriberEmail(),
+		);
+	}
 }

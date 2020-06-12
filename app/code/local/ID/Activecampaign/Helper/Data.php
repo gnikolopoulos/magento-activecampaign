@@ -31,7 +31,15 @@ class ID_Activecampaign_Helper_Data extends Mage_Core_Helper_Abstract
 		$contact = Mage::helper('id_activecampaign/api')->contactExists( $order->getCustomerEmail() );
 
 		if( !$contact ) {
-			$contact = $this->createContact( $order );
+			$contact = $this->createContact( Mage::helper('id_activecampaign/transformer')->createContactPayloadFromOrder($order) );
+		} else {
+			$contact = $this->updateContact( $contact, Mage::helper('id_activecampaign/transformer')->createContactPayloadFromOrder($order) );
+		}
+
+		if( $contact ) {
+			$fieldId = Mage::getStoreConfig('id_activecampaign/field_mapping/customer_group');
+			$group = Mage::getModel('customer/group')->load( $order->getCustomerGroupId() )->getCustomerGroupCode();
+			$this->updateCustomFieldValue($contact, $fieldId, $group);
 		}
 
 		if( !$customer ) {
@@ -71,6 +79,12 @@ class ID_Activecampaign_Helper_Data extends Mage_Core_Helper_Abstract
 
 		if( !$contact ) {
 			$contact = $this->createContact( $quote );
+		}
+
+		if( $contact ) {
+			$fieldId = Mage::getStoreConfig('id_activecampaign/field_mapping/customer_group');
+			$group = Mage::getModel('customer/group')->load( $order->getCustomerGroupId() )->getCustomerGroupCode();
+			$this->updateCustomFieldValue($contact, $fieldId, $group);
 		}
 
 		if( !$customer ) {
@@ -162,26 +176,44 @@ class ID_Activecampaign_Helper_Data extends Mage_Core_Helper_Abstract
 		}
 	}
 
-	/**
-	 * Create a contact inside ActiveCampaign
-	 * @param  object $order 	  Order object from magento observer
-	 * @return int|boolean        Contact id or flase on error
-	 */
-	public function createContact($order)
+	public function deleteEcomCustomer($customerId)
 	{
 		if( Mage::getStoreConfig('id_activecampaign/config/connection_id') != '' ) {
 			$this->__init();
 
-			$payload = array(
-				'email' => $order->getCustomerEmail(),
-				'firstName' => $order->getBillingAddress()->getFirstname(),
-				'lastName' => $order->getBillingAddress()->getLastname(),
-				'phone' => $order->getBillingAddress()->getTelephone()
-			);
+			try {
+				$params = array(
+					'headers' => $this->headers,
+				);
+
+				$res = $this->client->post('/api/3/ecomCustomers/'.$customerId, $params);
+
+				if( $res->getStatusCode() == 200 ) {
+					return true;
+				} else {
+					return false;
+				}
+			} catch( GuzzleHttp\Exception\ClientException $e ) {
+				return true;
+			}
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Create a contact inside ActiveCampaign
+	 * @param  array $data 		  Contact data array
+	 * @return int|boolean        Contact id or flase on error
+	 */
+	public function createContact($data)
+	{
+		if( Mage::getStoreConfig('id_activecampaign/config/connection_id') != '' ) {
+			$this->__init();
 
 			$params = array(
 				'headers' => $this->headers,
-				'json' => array( 'contact' => $payload ),
+				'json' => array( 'contact' => $data ),
 			);
 
 			try {
@@ -201,6 +233,72 @@ class ID_Activecampaign_Helper_Data extends Mage_Core_Helper_Abstract
 		}
 	}
 
+	/**
+	 * Update an existing contact inside ActiveCampaign
+	 * @param  array $data 		  Contact data array
+	 * @return int|boolean        Contact id or flase on error
+	 */
+	public function updateContact($contactId, $data)
+	{
+		if( Mage::getStoreConfig('id_activecampaign/config/connection_id') != '' ) {
+			$this->__init();
+
+			$params = array(
+				'headers' => $this->headers,
+				'json' => array( 'contact' => $data ),
+			);
+
+			try {
+				$res = $this->client->put('/api/3/contacts/'.$contactId, $params);
+				$result = json_decode($res->getBody());
+
+				if( $res->getStatusCode() == 200 ) {
+					return intval($result->meta->total) > 0 ? $result->contacts{0}->id : false;
+				} else {
+					return false;
+				}
+			} catch( GuzzleHttp\Exception\ClientException $e ) {
+				return true;
+			}
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Deletes an existing contact from ActiveCampaign
+	 * @param  int $contactId 		  Contact id
+	 * @return boolean
+	 */
+	public function deleteContact($contactId)
+	{
+		if( Mage::getStoreConfig('id_activecampaign/config/connection_id') != '' ) {
+			$this->__init();
+
+			$params = array(
+				'headers' => $this->headers,
+			);
+
+			try {
+				$res = $this->client->delete('/api/3/contacts/'.$contactId, $params);
+
+				if( $res->getStatusCode() == 200 ) {
+					return true;
+				} else {
+					return false;
+				}
+			} catch( GuzzleHttp\Exception\ClientException $e ) {
+				return true;
+			}
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Creates a new connection to ActiveCmapaign
+	 * @return int|boolean connection id or false on error
+	 */
 	public function createConnection()
 	{
 		$this->__init();
@@ -221,6 +319,57 @@ class ID_Activecampaign_Helper_Data extends Mage_Core_Helper_Abstract
 
 		if( $res->getStatusCode() == 200 ) {
 			return $result->connection->id;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Gets all custom fields from ActiveCampaign
+	 * @return object|boolean fields object or false on error
+	 */
+	public function getCustomFields()
+	{
+		$this->__init();
+
+		$params = array(
+			'headers' => $this->headers,
+		);
+
+		$res = $this->client->get('/api/3/fields', $params);
+		$result = json_decode($res->getBody());
+
+		if( $res->getStatusCode() == 200 ) {
+			return $result->fields;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Updates or creates a custom field value for a given contact id
+	 * @param  int 	  $contactId 	Contact Id
+	 * @param  int 	  $fieldId   	Field Id to update
+	 * @param  string $value     	Text value of custom field
+	 * @return boolean
+	 */
+	public function updateCustomFieldValue($contactId, $fieldId, $value)
+	{
+		$this->__init();
+
+		$params = array(
+			'headers' => $this->headers,
+			'json' => array( 'fieldValue' => array(
+				'contact' => $contactId,
+				'field' => $fieldId,
+				'value' => $value
+			) ),
+		);
+
+		$res = $this->client->post('/api/3/fieldValues', $params);
+
+		if( $res->getStatusCode() == 200 ) {
+			return true;
 		} else {
 			return false;
 		}

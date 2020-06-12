@@ -1,58 +1,69 @@
 <?php
 
-require Mage::getModuleDir('', 'ID_Activecampaign') . '/lib/vendor/autoload.php';
-
-use GuzzleHttp\Client;
-
 class ID_Activecampaign_Model_Observer
 {
-	private $client;
-	private $headers;
 
 	/**
-	 * Create the GuzzleHTTP Client and headers to be used
-	 */
-	private function __init()
-	{
-		$this->client = new Client([ 'base_uri' => Mage::getStoreConfig('id_activecampaign/config/api_endpoint') ]);
-		$this->headers = array('Api-Token' => Mage::getStoreConfig('id_activecampaign/config/api_key'));
-	}
-
-	/**
-	 * Creates or updates a ecommerce customer
+	 * Updates an ecommerce contact
 	 * @param  Varien_Event_Observer $observer Magento Observer instance
 	 * @return boolean
 	 */
 	public function customerSaveAfter(Varien_Event_Observer $observer)
 	{
 		if( Mage::getStoreConfig('id_activecampaign/config/connection_id') != '' ) {
-			$this->__init();
-			$customer = $observer->getCustomer()->getData();
+			$customer_object = $observer->getCustomer();
+			$customer = Mage::helper('id_activecampaign/api')->customerExists( $customer_object->getEmail() );
+			$contact = Mage::helper('id_activecampaign/api')->contactExists( $customer_object->getEmail() );
 
-			$payload = array(
-				'connectionid' => Mage::getStoreConfig('id_activecampaign/config/connection_id'),
-				'externalid' => $customer['entity_id'],
-				'acceptsMarketing' => $customer['is_subscribed'] ? "1":"0",
-				'email' => $customer['email'],
+			$contact_payload = array(
+				'email' => $customer_object->getEmail(),
+				'firstName' => $customer_object->getFirstname(),
+				'lastName' => $customer_object->getLastname()
 			);
-
-			$params = array(
-				'headers' => $this->headers,
-				'json' => array( 'ecomCustomer' => $payload ),
-			);
-
-			if( $cid = Mage::helper('id_activecampaign/api')->customerExists($customer['email']) ) {
-				$res = $this->client->put('/api/3/ecomCustomers/'.$cid, $params);
+			if( !$contact ) {
+				$contact = Mage::helper('id_activecampaign')->createContact( $contact_payload );
 			} else {
-				$res = $this->client->post('/api/3/ecomCustomers', $params);
+				$contact = Mage::helper('id_activecampaign')->updateContact( $contact, $contact_payload );
 			}
 
-			$result = json_decode($res->getBody());
+			if( $contact ) {
+				$fieldId = Mage::getStoreConfig('id_activecampaign/field_mapping/customer_group');
+				$group = Mage::getModel('customer/group')->load( $customer_object->getGroupId() )->getCustomerGroupCode();
+				Mage::helper('id_activecampaign')->updateCustomFieldValue($contact, $fieldId, $group);
+			}
 
-			if( $res->getStatusCode() == 201 ) {
+			if( !$customer ) {
+				$customer = Mage::helper('id_activecampaign')->createEcomCustomer( $customer_object->getId(), $customer_object->getEmail() );
+			}
+
+			if( $customer ) {
+				$customer_object->setActivecampaignSync('1');
+				$customer_object->save();
 				return true;
 			} else {
 				return false;
+			}
+		} else {
+			return true;
+		}
+	}
+
+	/**
+	 * Deletes an existing Ecommerce Customer from ActiveCampaign
+	 * @param  Varien_Event_Observer $observer Magento Observer instance
+	 * @return boolean
+	 */
+	public function customerDeleteAfter(Varien_Event_Observer $observer)
+	{
+		if( Mage::getStoreConfig('id_activecampaign/config/connection_id') != '' ) {
+			$customer = $observer->getCustomer();
+
+			if( $cid = Mage::helper('id_activecampaign/api')->contactExists($customer->getEmail()) ) {
+				if( Mage::helper('id_activecampaign')->deleteContact($cid) ) {
+					return true;
+				} else {
+					return false;
+				}
 			}
 		} else {
 			return true;
@@ -129,39 +140,21 @@ class ID_Activecampaign_Model_Observer
 	public function subscribedToNewsletter(Varien_Event_Observer $observer)
 	{
 		if( Mage::getStoreConfig('id_activecampaign/config/connection_id') != '' ) {
-			$this->__init();
 			$subscriber = $observer->getEvent()->getSubscriber();
 			$existing = Mage::helper('id_activecampaign/api')->contactExists( $subscriber->getSubscriberEmail() );
 
 			if( $subscriber->isSubscribed() ) {
 				if( !$existing ) {
-					$payload = array(
-						'email' => $subscriber->getSubscriberEmail(),
-					);
-
-					$params = array(
-						'headers' => $this->headers,
-						'json' => array( 'contact' => $payload ),
-					);
-
-					$res = $this->client->post('/api/3/contacts', $params);
+					$res = Mage::helper('id_activecampaign')->createContact( Mage::helper('id_activecampaign/transformer')->createContactPayloadFromSubscriber($subscriber) );
 				}
 			} else {
 				if( $existing ) {
-					$params = array(
-						'headers' => $this->headers,
-					);
-
-					$res = $this->client->delete('/api/3/contacts/'.$existing, $params);
+					$res = Mage::helper('id_activecampaign')->deleteContact($existing);
 				}
 			}
 
 			if( $res ) {
-				if( $res->getStatusCode() == 201 || $res->getStatusCode() == 200 ) {
-					return true;
-				} else {
-					return false;
-				}
+				return true;
 			} else {
 				return true;
 			}
