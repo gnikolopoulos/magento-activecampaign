@@ -83,7 +83,7 @@ class ID_Activecampaign_Helper_Data extends Mage_Core_Helper_Abstract
 
 		if( $contact ) {
 			$fieldId = Mage::getStoreConfig('id_activecampaign/field_mapping/customer_group');
-			$group = Mage::getModel('customer/group')->load( $order->getCustomerGroupId() )->getCustomerGroupCode();
+			$group = Mage::getModel('customer/group')->load( $quote->getCustomerGroupId() )->getCustomerGroupCode();
 			$this->updateCustomFieldValue($contact, $fieldId, $group);
 		}
 

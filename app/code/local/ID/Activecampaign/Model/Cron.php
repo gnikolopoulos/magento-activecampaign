@@ -65,6 +65,23 @@ class ID_Activecampaign_Model_Cron
 							$customer->save();
 						}
 					} else {
+						$contact = Mage::helper('id_activecampaign/api')->contactExists( $customer->getEmail() );
+						$contact_payload = array(
+							'email' => $customer->getEmail(),
+							'firstName' => $customer->getFirstname(),
+							'lastName' => $customer->getLastname()
+						);
+						if( !$contact ) {
+							$contact = Mage::helper('id_activecampaign')->createContact( $contact_payload );
+						} else {
+							$contact = Mage::helper('id_activecampaign')->updateContact( $contact, $contact_payload );
+						}
+
+						if( $contact ) {
+							$fieldId = Mage::getStoreConfig('id_activecampaign/field_mapping/customer_group');
+							$group = Mage::getModel('customer/group')->load( $customer->getGroupId() )->getCustomerGroupCode();
+							Mage::helper('id_activecampaign/api')->updateCustomFieldValue($contact, $fieldId, $group);
+						}
 						$customer->setActivecampaignSync('1');
 						$customer->save();
 					}

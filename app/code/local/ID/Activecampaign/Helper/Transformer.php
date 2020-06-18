@@ -49,6 +49,11 @@ class ID_Activecampaign_Helper_Transformer extends Mage_Core_Helper_Abstract
 		return $payload;
 	}
 
+	/**
+	 * Prepares a payload array for a given quote
+	 * @param  object $quote The quote object
+	 * @return array         Payload data
+	 */
 	public function createAbandonedCartPayload($quote)
 	{
 		$quote_products = array();
@@ -91,6 +96,11 @@ class ID_Activecampaign_Helper_Transformer extends Mage_Core_Helper_Abstract
 		return $payload;
 	}
 
+	/**
+	 * Creates a contact payload array based on a given order
+	 * @param  object $order The order object
+	 * @return array         Payload data
+	 */
 	public function createContactPayloadFromOrder($order)
 	{
 		return array(
@@ -101,6 +111,11 @@ class ID_Activecampaign_Helper_Transformer extends Mage_Core_Helper_Abstract
 		);
 	}
 
+	/**
+	 * Creates a contact payload array based on a given subscriber
+	 * @param  object $subscriber The subscriber object
+	 * @return array              Payload data
+	 */
 	public function createContactPayloadFromSubscriber($subscriber)
 	{
 		return array(

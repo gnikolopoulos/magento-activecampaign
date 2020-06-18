@@ -10,16 +10,12 @@ class ID_Activecampaign_Adminhtml_ActivecampaignController extends Mage_Adminhtm
 		return $this;
 	}
 
+	/**
+	 * Creates the connection to ActiveCampaign if it does not exist. Updates the setting afterwards
+	 * @return object  Session message
+	 */
 	public function createConnectionAction()
 	{
-		/*
-		if( Mage::getStoreConfig('id_activecampaign/config/connection_id') == '' ) {
-			$res = $this->client->post('/api/3/connections', $params);
-		} else {
-			$res = $this->client->put('/api/3/connections/'.Mage::getStoreConfig('id_activecampaign/config/connection_id'), $params);
-		}
-		*/
-
 		if( Mage::getStoreConfig('id_activecampaign/config/connection_id') == '' ) {
 			if( Mage::getStoreConfig('id_activecampaign/config/api_endpoint') != '' && Mage::getStoreConfig('id_activecampaign/config/api_key') != '' ) {
 				$result = Mage::helper('id_activecampaign')->createConnection();
@@ -43,6 +39,10 @@ class ID_Activecampaign_Adminhtml_ActivecampaignController extends Mage_Adminhtm
 		return $this;
 	}
 
+	/**
+	 * Manually creates an existing order in ActiveCampaign
+	 * @return object   Session message
+	 */
 	public function activecampaignAction() {
 		$order = Mage::getModel("sales/order")->load( $this->getRequest()->getParam('order') );
 
